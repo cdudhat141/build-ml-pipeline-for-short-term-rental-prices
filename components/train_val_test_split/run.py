@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-This script splits the provided dataframe in test and remainder
+This script splits the provided dataframe into train/validation and test sets.
 """
 import argparse
 import logging
@@ -8,50 +8,51 @@ import pandas as pd
 import wandb
 import tempfile
 from sklearn.model_selection import train_test_split
-from wandb_utils.log_artifact import log_artifact
+import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
 
-
 def go(args):
+    run = wandb.init(project="build-ml-pipeline-for-short-term-rental-prices-nyc_airbnb_dev_components_get_data", job_type="train_val_test_split")
+    run.config.update(vars(args))
 
-    run = wandb.init(job_type="train_val_test_split")
-    run.config.update(args)
-
-    # Download input artifact. This will also note that this script is using this
+    # Download input artifact. This will also log that this script is using this
     # particular version of the artifact
     logger.info(f"Fetching artifact {args.input}")
     artifact_local_path = run.use_artifact(args.input).file()
 
     df = pd.read_csv(artifact_local_path)
 
-    logger.info("Splitting trainval and test")
+    logger.info("Splitting train/validation and test")
+    stratify_col = df[args.stratify_by] if args.stratify_by != 'none' else None
     trainval, test = train_test_split(
         df,
         test_size=args.test_size,
         random_state=args.random_seed,
-        stratify=df[args.stratify_by] if args.stratify_by != 'none' else None,
+        stratify=stratify_col,
     )
 
     # Save to output files
-    for df, k in zip([trainval, test], ['trainval', 'test']):
-        logger.info(f"Uploading {k}_data.csv dataset")
-        with tempfile.NamedTemporaryFile("w") as fp:
-
-            df.to_csv(fp.name, index=False)
-
-            log_artifact(
-                f"{k}_data.csv",
-                f"{k}_data",
-                f"{k} split of dataset",
-                fp.name,
-                run,
+    for df_split, split_name in zip([trainval, test], ['trainval', 'test']):
+        logger.info(f"Uploading {split_name}_data.csv dataset")
+        with tempfile.NamedTemporaryFile("w", delete=False) as fp:
+            df_split.to_csv(fp.name, index=False)
+            artifact = wandb.Artifact(
+                name=f"{split_name}_data.csv",
+                type=f"{split_name}_data",
+                description=f"{split_name} split of dataset"
             )
+            artifact.add_file(fp.name)
+            run.log_artifact(artifact)
+            # Close and remove the temporary file
+            fp.close()
+            os.remove(fp.name)
 
+    run.finish()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Split test and remainder")
+    parser = argparse.ArgumentParser(description="Split dataset into train/validation and test sets")
 
     parser.add_argument("input", type=str, help="Input artifact to split")
 
@@ -60,13 +61,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--random_seed", type=int, help="Seed for random number generator", default=42, required=False
+        "--random_seed", type=int, help="Seed for random number generator", default=42
     )
 
     parser.add_argument(
-        "--stratify_by", type=str, help="Column to use for stratification", default='none', required=False
+        "--stratify_by", type=str, help="Column to use for stratification", default='none'
     )
 
     args = parser.parse_args()
-
     go(args)
