@@ -31,16 +31,16 @@ def download_and_clean_data(args):
     logger.info("Converting last_review to datetime")
     df['last_review'] = pd.to_datetime(df['last_review'])
 
-    # Convert last_review to datetime
-    logger.info("Converting last_review to datetime")
-    df['last_review'] = pd.to_datetime(df['last_review'])
+    # Keep only the rows within the specified geolocation
+    logger.info("Filtering rows by geolocation")
+    df = df[df['longitude'].between(-74.25, -73.50) & df['latitude'].between(40.5, 41.2)].copy()
 
     # Save the cleaned dataset
     cleaned_file_name = "clean_sample.csv"
     logger.info(f"Saving cleaned data to {cleaned_file_name}")
     df.to_csv(cleaned_file_name, index=False)
 
-    # Create a new artifact for the cleaned data
+    # Create a new artifact for the cleaned datas
     artifact = wandb.Artifact(
         args.output_artifact,
         type=args.output_type,
