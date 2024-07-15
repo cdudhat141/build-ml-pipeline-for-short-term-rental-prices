@@ -31,9 +31,9 @@ def download_and_clean_data(args):
     logger.info("Converting last_review to datetime")
     df['last_review'] = pd.to_datetime(df['last_review'])
 
-    # Keep only the rows within the specified geolocation
-    logger.info("Filtering rows by geolocation")
-    df = df[df['longitude'].between(-74.25, -73.50) & df['latitude'].between(40.5, 41.2)].copy()
+    # Convert last_review to datetime
+    logger.info("Converting last_review to datetime")
+    df['last_review'] = pd.to_datetime(df['last_review'])
 
     # Save the cleaned dataset
     cleaned_file_name = "clean_sample.csv"
